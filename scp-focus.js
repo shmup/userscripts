@@ -47,6 +47,12 @@
     // clone the content
     const clone = content.cloneNode(true);
 
+    // hide rating widget
+    const ratingWidget = clone.querySelector('.page-rate-widget-box');
+    if (ratingWidget) {
+      ratingWidget.style.display = 'none';
+    }
+
     // preserve all inline styles and ensure light text on black
     clone.style.cssText = `
       max-width: 800px;
@@ -60,6 +66,13 @@
       if (computed.color && computed.color !== 'rgb(255, 255, 255)') {
         el.style.color = '#fff';
       }
+    });
+
+    // fix blockquote styles for dark mode
+    clone.querySelectorAll('blockquote').forEach(bq => {
+      bq.style.borderLeft = '2px solid #666';
+      bq.style.background = '#111';
+      bq.style.color = '#fff';
     });
 
     overlay.innerHTML = '';
@@ -79,20 +92,37 @@
 
   // add focus link to navbar
   const addFocusLink = () => {
+    // desktop menu
     const topBar = document.querySelector('#top-bar ul');
-    if (!topBar) return;
+    if (topBar) {
+      const focusLi = document.createElement('li');
+      const focusLink = document.createElement('a');
+      focusLink.href = 'javascript:;';
+      focusLink.textContent = 'Focus';
+      focusLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        enterFocusMode();
+      });
 
-    const focusLi = document.createElement('li');
-    const focusLink = document.createElement('a');
-    focusLink.href = 'javascript:;';
-    focusLink.textContent = 'Focus';
-    focusLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      enterFocusMode();
-    });
+      focusLi.appendChild(focusLink);
+      topBar.insertBefore(focusLi, topBar.firstChild);
+    }
 
-    focusLi.appendChild(focusLink);
-    topBar.insertBefore(focusLi, topBar.firstChild);
+    // mobile menu
+    const mobileTopBar = document.querySelector('.mobile-top-bar ul');
+    if (mobileTopBar) {
+      const focusLi = document.createElement('li');
+      const focusLink = document.createElement('a');
+      focusLink.href = 'javascript:;';
+      focusLink.textContent = 'Focus';
+      focusLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        enterFocusMode();
+      });
+
+      focusLi.appendChild(focusLink);
+      mobileTopBar.insertBefore(focusLi, mobileTopBar.firstChild);
+    }
   };
 
   // listen for escape key
