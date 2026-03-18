@@ -13,7 +13,7 @@
   'use strict';
 
   const STORAGE_KEY = 'hn-filter-patterns';
-  const DEFAULTS = ['ai', 'llm', 'openai', 'anthropic', 'mistral'];
+  const DEFAULTS = [];
 
   const loadPatterns = () => {
     try {
@@ -40,14 +40,31 @@
     return hasWild ? src : '\\b' + src + '\\b';
   };
 
-  const buildRegex = (patterns) => {
-    const parts = patterns.map(patternToRegex).filter(Boolean);
+  const buildRegex = (parts) => {
     if (!parts.length) return null;
     return new RegExp('(' + parts.join('|') + ')', 'i');
   };
 
+  const buildMatchers = (patterns) => {
+    const titleParts = [];
+    const urlParts = [];
+    for (const pat of patterns) {
+      if (pat.startsWith('url:')) {
+        const src = patternToRegex(pat.slice(4));
+        if (src) urlParts.push(src);
+      } else {
+        const src = patternToRegex(pat);
+        if (src) titleParts.push(src);
+      }
+    }
+    return {
+      title: buildRegex(titleParts),
+      url: buildRegex(urlParts),
+    };
+  };
+
   const filter = () => {
-    const blocked = buildRegex(loadPatterns());
+    const blocked = buildMatchers(loadPatterns());
     const page = Number(new URLSearchParams(location.search).get('p')) || 1;
     const startRank = (page - 1) * 30;
 
@@ -58,11 +75,18 @@
       const titleEl = row.querySelector('.titleline > a');
       if (!titleEl) return;
 
+      const siteEl = row.querySelector('.sitebit a');
+      const site = siteEl ? siteEl.textContent : '';
+      const href = titleEl.href || '';
+
       // the subtext/spacer rows immediately follow each athing row
       const subtext = row.nextElementSibling;
       const spacer = subtext?.nextElementSibling;
 
-      if (blocked && blocked.test(titleEl.textContent)) {
+      const titleMatch = blocked.title && blocked.title.test(titleEl.textContent);
+      const urlMatch = blocked.url && (blocked.url.test(site) || blocked.url.test(href));
+
+      if (titleMatch || urlMatch) {
         row.style.display = 'none';
         if (subtext) subtext.style.display = 'none';
         if (spacer?.classList.contains('spacer')) spacer.style.display = 'none';
@@ -88,10 +112,11 @@
           <tr><td>
             <b>Filter patterns</b>
             <span style="color:#828282; margin-left:8px;">
-              plain words match standalone, use * for wildcards
+              words match standalone, * for wildcards, url: for site/link
             </span>
             <br><br>
             <textarea id="hn-filter-textarea" rows="6" cols="60"
+              placeholder="ai&#10;llm&#10;openai&#10;context-engineer*&#10;url:mistral.ai&#10;url:openai.com"
               style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
                      border:1px solid #828282; padding:4px;"
             ></textarea>
