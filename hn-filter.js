@@ -13,11 +13,14 @@
   'use strict';
 
   // standalone word match, case-insensitive
-  const blocked = /\b(ai|llm)\b/i;
+  const blocked = /\b(ai|llm|openai|anthropic|mistral)\b/i;
 
   const filter = () => {
+    const page = Number(new URLSearchParams(location.search).get('p')) || 1;
+    const startRank = (page - 1) * 30;
+
     const rows = document.querySelectorAll('tr.athing');
-    let rank = 0;
+    let rank = startRank;
 
     rows.forEach(row => {
       const titleEl = row.querySelector('.titleline > a');
