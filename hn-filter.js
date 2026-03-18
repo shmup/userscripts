@@ -13,14 +13,13 @@
   'use strict';
 
   const STORAGE_KEY = 'hn-filter-patterns';
-  const DEFAULTS = [];
 
   const loadPatterns = () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : DEFAULTS;
+      return stored ? JSON.parse(stored) : [];
     } catch {
-      return DEFAULTS;
+      return [];
     }
   };
 
@@ -85,15 +84,14 @@
 
       const titleMatch = blocked.title && blocked.title.test(titleEl.textContent);
       const urlMatch = blocked.url && (blocked.url.test(site) || blocked.url.test(href));
+      const hide = titleMatch || urlMatch;
+      const display = hide ? 'none' : '';
 
-      if (titleMatch || urlMatch) {
-        row.style.display = 'none';
-        if (subtext) subtext.style.display = 'none';
-        if (spacer?.classList.contains('spacer')) spacer.style.display = 'none';
-      } else {
-        row.style.display = '';
-        if (subtext) subtext.style.display = '';
-        if (spacer?.classList.contains('spacer')) spacer.style.display = '';
+      row.style.display = display;
+      if (subtext) subtext.style.display = display;
+      if (spacer?.classList.contains('spacer')) spacer.style.display = display;
+
+      if (!hide) {
         rank++;
         const rankEl = row.querySelector('.rank');
         if (rankEl) rankEl.textContent = rank + '.';
@@ -142,7 +140,7 @@
     // add " | filters" after submit
     const sep = document.createTextNode(' | ');
     const link = document.createElement('a');
-    link.href = 'javascript:;';
+    link.href = '#';
     link.textContent = 'filters';
     link.addEventListener('click', (e) => {
       e.preventDefault();
