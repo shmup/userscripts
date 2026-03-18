@@ -64,8 +64,12 @@
     };
   };
 
+  let minTextareaHeight = 0;
+
   const filter = () => {
     const blocked = buildMatchers(loadPatterns());
+    if (!blocked.title && !blocked.url) return;
+
     const page = Number(new URLSearchParams(location.search).get("p")) || 1;
     const startRank = (page - 1) * 30;
 
@@ -104,36 +108,45 @@
   };
 
   // filters panel - toggles inline, no overlay
+  const injectStyles = () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      #hn-filter-panel textarea,
+      #hn-filter-panel button {
+        font-family: Verdana, Geneva, sans-serif;
+        font-size: 10pt;
+      }
+      #hn-filter-textarea {
+        border: 1px solid #828282;
+        padding: 4px;
+        overflow: hidden;
+        resize: none;
+      }
+      #hn-filter-panel button { cursor: pointer; }
+    `;
+    document.head.appendChild(style);
+  };
+
   const createPanel = () => {
     const panel = document.createElement("tr");
     panel.id = "hn-filter-panel";
     panel.style.display = "none";
     panel.innerHTML = `
       <td colspan="3" style="padding:10px;">
-        <table border="0" cellpadding="0" cellspacing="0" style="width:100%;">
-          <tr><td>
-            <b>Filter patterns</b>
-            <span style="color:#828282; margin-left:8px;">
-              words match standalone, * for wildcards, url: for site/link
-            </span>
-            <br><br>
-            <textarea id="hn-filter-textarea" rows="1" cols="60"
-              placeholder="ai&#10;llm&#10;meta-prompt*&#10;context-eng*&#10;url:*.ai&#10;url:openai.*"
-              style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
-                     border:1px solid #828282; padding:4px; overflow:hidden; resize:none;"
-            ></textarea>
-            <br>
-            <span style="margin-top:4px; display:inline-block;">
-              <button id="hn-filter-save"
-                style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
-                       cursor:pointer;">save</button>
-              <button id="hn-filter-close"
-                style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
-                       cursor:pointer; margin-left:4px;">close</button>
-              <span id="hn-filter-status" style="color:#828282; margin-left:8px;"></span>
-            </span>
-          </td></tr>
-        </table>
+        <b>Filter patterns</b>
+        <span style="color:#828282; margin-left:8px;">
+          words match standalone, * for wildcards, url: for site/link
+        </span>
+        <br><br>
+        <textarea id="hn-filter-textarea" rows="6" cols="60"
+          placeholder="ai&#10;llm&#10;meta-prompt*&#10;context-eng*&#10;url:*.ai&#10;url:openai.*"
+        ></textarea>
+        <br>
+        <span style="margin-top:4px; display:inline-block;">
+          <button id="hn-filter-save">save</button>
+          <button id="hn-filter-close" style="margin-left:4px;">close</button>
+          <span id="hn-filter-status" style="color:#828282; margin-left:8px;"></span>
+        </span>
       </td>
     `;
     return panel;
@@ -171,8 +184,9 @@
     const status = document.querySelector("#hn-filter-status");
 
     const autoResize = () => {
-      textarea.style.height = "auto";
-      textarea.style.height = textarea.scrollHeight + "px";
+      textarea.style.height = "0";
+      textarea.style.height =
+        Math.max(textarea.scrollHeight, minTextareaHeight) + "px";
     };
     textarea.addEventListener("input", autoResize);
 
@@ -202,14 +216,17 @@
       const textarea = document.querySelector("#hn-filter-textarea");
       textarea.value = loadPatterns().join("\n");
       panel.style.display = "";
-      textarea.style.height = "auto";
-      textarea.style.height = textarea.scrollHeight + "px";
+      if (!minTextareaHeight) minTextareaHeight = textarea.offsetHeight;
+      textarea.style.height = "0";
+      textarea.style.height =
+        Math.max(textarea.scrollHeight, minTextareaHeight) + "px";
       return;
     }
     panel.style.display = "none";
   };
 
   // init
+  injectStyles();
   addFilterLink();
   filter();
 })();
