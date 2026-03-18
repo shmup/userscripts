@@ -116,10 +116,10 @@
               words match standalone, * for wildcards, url: for site/link
             </span>
             <br><br>
-            <textarea id="hn-filter-textarea" rows="6" cols="60"
+            <textarea id="hn-filter-textarea" rows="1" cols="60"
               placeholder="ai&#10;llm&#10;meta-prompt*&#10;context-eng*&#10;url:*.ai&#10;url:openai.*"
               style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
-                     border:1px solid #828282; padding:4px;"
+                     border:1px solid #828282; padding:4px; overflow:hidden; resize:none;"
             ></textarea>
             <br>
             <span style="margin-top:4px; display:inline-block;">
@@ -169,6 +169,12 @@
     const saveBtn = document.querySelector("#hn-filter-save");
     const status = document.querySelector("#hn-filter-status");
 
+    const autoResize = () => {
+      textarea.style.height = "auto";
+      textarea.style.height = textarea.scrollHeight + "px";
+    };
+    textarea.addEventListener("input", autoResize);
+
     saveBtn.addEventListener("click", () => {
       const lines = textarea.value
         .split("\n")
@@ -194,8 +200,12 @@
     if (!visible) {
       const textarea = document.querySelector("#hn-filter-textarea");
       textarea.value = loadPatterns().join("\n");
+      panel.style.display = "";
+      textarea.style.height = "auto";
+      textarea.style.height = textarea.scrollHeight + "px";
+      return;
     }
-    panel.style.display = visible ? "none" : "";
+    panel.style.display = "none";
   };
 
   // init
