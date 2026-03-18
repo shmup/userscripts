@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         hn keyword filter
 // @namespace    https://github.com/shmup/userscripts
-// @version      2.0.0
+// @version      1.1.0
 // @description  filters hacker news posts by title keywords and renumbers the list
 // @author       shmup
 // @match        https://news.ycombinator.com/*
 // @grant        none
 // @run-at       document-idle
+// @ts-nocheck
 // ==/UserScript==
 
 (function() {
