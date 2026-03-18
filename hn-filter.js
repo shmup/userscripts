@@ -117,7 +117,7 @@
             </span>
             <br><br>
             <textarea id="hn-filter-textarea" rows="6" cols="60"
-              placeholder="ai&#10;llm&#10;openai&#10;context-engineer*&#10;url:mistral.ai&#10;url:openai.com"
+              placeholder="ai&#10;llm&#10;meta-prompt*&#10;context-eng*&#10;url:*.ai&#10;url:openai.*"
               style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
                      border:1px solid #828282; padding:4px;"
             ></textarea>
@@ -126,6 +126,9 @@
               <button id="hn-filter-save"
                 style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
                        cursor:pointer;">save</button>
+              <button id="hn-filter-close"
+                style="font-family:Verdana, Geneva, sans-serif; font-size:10pt;
+                       cursor:pointer; margin-left:4px;">close</button>
               <span id="hn-filter-status" style="color:#828282; margin-left:8px;"></span>
             </span>
           </td></tr>
@@ -178,6 +181,10 @@
         status.textContent = "";
       }, 1500);
     });
+
+    document
+      .querySelector("#hn-filter-close")
+      .addEventListener("click", togglePanel);
   };
 
   const togglePanel = () => {
