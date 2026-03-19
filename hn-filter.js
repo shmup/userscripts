@@ -5,6 +5,7 @@
 // @description  filters hacker news posts by title keywords and renumbers the list
 // @author       shmup
 // @match        https://news.ycombinator.com/*
+// @license      MIT
 // @grant        none
 // @run-at       document-idle
 // @ts-nocheck
