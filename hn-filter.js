@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hn keyword filter
 // @namespace    https://github.com/shmup/userscripts
-// @version      1.0.0
+// @version      1.1.0
 // @description  filters hacker news posts by title keywords and renumbers the list
 // @author       shmup
 // @match        https://news.ycombinator.com/*
@@ -35,11 +35,13 @@
   const patternToRegex = (pat) => {
     pat = pat.trim().toLowerCase();
     if (!pat) return null;
-    const hasWild = pat.includes("*");
+    const startsWild = pat.startsWith("*");
+    const endsWild = pat.endsWith("*");
     // escape regex special chars except *
     const escaped = pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
     const src = escaped.replace(/\*/g, ".*");
-    return hasWild ? src : "\\b" + src + "\\b";
+    if (!startsWild && !endsWild) return "\\b" + src + "\\b";
+    return (startsWild ? "" : "\\b") + src + (endsWild ? "" : "\\b");
   };
 
   const buildRegex = (parts) => {
@@ -67,16 +69,9 @@
 
   let minTextareaHeight = 0;
 
-  const filter = () => {
-    const blocked = buildMatchers(loadPatterns());
-    if (!blocked.title && !blocked.url) return;
-
-    const page = Number(new URLSearchParams(location.search).get("p")) || 1;
-    const startRank = (page - 1) * 30;
-
+  // test each row against matchers, call fn(row, subtext, spacer, matched)
+  const eachRow = (matchers, fn) => {
     const rows = document.querySelectorAll("tr.athing");
-    let rank = startRank;
-
     rows.forEach((row) => {
       const titleEl = row.querySelector(".titleline > a");
       if (!titleEl) return;
@@ -85,26 +80,62 @@
       const site = siteEl ? siteEl.textContent : "";
       const href = titleEl.href || "";
 
-      // the subtext/spacer rows immediately follow each athing row
       const subtext = row.nextElementSibling;
       const spacer = subtext?.nextElementSibling;
 
       const titleMatch =
-        blocked.title && blocked.title.test(titleEl.textContent);
+        matchers.title && matchers.title.test(titleEl.textContent);
       const urlMatch =
-        blocked.url && (blocked.url.test(site) || blocked.url.test(href));
-      const hide = titleMatch || urlMatch;
-      const display = hide ? "none" : "";
+        matchers.url && (matchers.url.test(site) || matchers.url.test(href));
 
+      fn(row, subtext, spacer, titleMatch || urlMatch);
+    });
+  };
+
+  const filter = () => {
+    const blocked = buildMatchers(loadPatterns());
+    if (!blocked.title && !blocked.url) return;
+
+    const page = Number(new URLSearchParams(location.search).get("p")) || 1;
+    const startRank = (page - 1) * 30;
+    let rank = startRank;
+
+    eachRow(blocked, (row, subtext, spacer, matched) => {
+      const display = matched ? "none" : "";
       row.style.display = display;
       if (subtext) subtext.style.display = display;
       if (spacer?.classList.contains("spacer")) spacer.style.display = display;
 
-      if (!hide) {
+      if (!matched) {
         rank++;
         const rankEl = row.querySelector(".rank");
         if (rankEl) rankEl.textContent = rank + ".";
       }
+    });
+  };
+
+  const clearHighlights = () => {
+    document
+      .querySelectorAll("tr.athing.hn-filter-highlight")
+      .forEach((row) => {
+        row.classList.remove("hn-filter-highlight");
+      });
+  };
+
+  const preview = (text) => {
+    const lines = text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const matchers = buildMatchers(lines);
+
+    if (!matchers.title && !matchers.url) {
+      clearHighlights();
+      return;
+    }
+
+    eachRow(matchers, (row, _subtext, _spacer, matched) => {
+      row.classList.toggle("hn-filter-highlight", matched);
     });
   };
 
@@ -124,6 +155,10 @@
         resize: none;
       }
       #hn-filter-panel button { cursor: pointer; }
+      tr.athing.hn-filter-highlight .titleline > a {
+        background-color: #ff6600;
+        color: #fffefe;
+      }
     `;
     document.head.appendChild(style);
   };
@@ -144,9 +179,7 @@
         ></textarea>
         <br>
         <span style="margin-top:4px; display:inline-block;">
-          <button id="hn-filter-save">save</button>
-          <button id="hn-filter-close" style="margin-left:4px;">close</button>
-          <span id="hn-filter-status" style="color:#828282; margin-left:8px;"></span>
+          <button id="hn-filter-close">save &amp; close</button>
         </span>
       </td>
     `;
@@ -179,29 +212,23 @@
       mainTable.insertBefore(panel, bigbox);
     }
 
-    // wire up buttons
     const textarea = document.querySelector("#hn-filter-textarea");
-    const saveBtn = document.querySelector("#hn-filter-save");
-    const status = document.querySelector("#hn-filter-status");
 
     const autoResize = () => {
       textarea.style.height = "0";
       textarea.style.height =
         Math.max(textarea.scrollHeight, minTextareaHeight) + "px";
     };
-    textarea.addEventListener("input", autoResize);
 
-    saveBtn.addEventListener("click", () => {
-      const lines = textarea.value
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      savePatterns(lines);
-      filter();
-      status.textContent = "saved";
-      setTimeout(() => {
-        status.textContent = "";
-      }, 1500);
+    let debounceTimer;
+    const debouncedPreview = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => preview(textarea.value), 200);
+    };
+
+    textarea.addEventListener("input", () => {
+      autoResize();
+      debouncedPreview();
     });
 
     document
@@ -214,6 +241,15 @@
     if (!panel) return;
     const visible = panel.style.display !== "none";
     if (!visible) {
+      // opening: unhide everything so highlights are visible
+      document.querySelectorAll("tr.athing").forEach((row) => {
+        row.style.display = "";
+        const subtext = row.nextElementSibling;
+        const spacer = subtext?.nextElementSibling;
+        if (subtext) subtext.style.display = "";
+        if (spacer?.classList.contains("spacer")) spacer.style.display = "";
+      });
+
       const textarea = document.querySelector("#hn-filter-textarea");
       textarea.value = loadPatterns().join("\n");
       panel.style.display = "";
@@ -221,9 +257,22 @@
       textarea.style.height = "0";
       textarea.style.height =
         Math.max(textarea.scrollHeight, minTextareaHeight) + "px";
+
+      // highlight current patterns
+      preview(textarea.value);
       return;
     }
+
+    // closing: save, clear highlights, apply filter
+    const textarea = document.querySelector("#hn-filter-textarea");
+    const lines = textarea.value
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    savePatterns(lines);
+    clearHighlights();
     panel.style.display = "none";
+    filter();
   };
 
   // init
