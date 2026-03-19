@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         hn keyword filter
 // @namespace    https://github.com/shmup/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  filters hacker news posts by title keywords and renumbers the list
 // @author       shmup
 // @match        https://news.ycombinator.com/*
@@ -30,44 +30,50 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns));
   };
 
-  // convert user pattern to regex source
+  const parseLines = (text) =>
+    text
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  // build a single regex from patterns that share a prefix
   // plain word = \bword\b, pattern with * = wildcard match
-  const patternToRegex = (pat) => {
-    pat = pat.trim().toLowerCase();
-    if (!pat) return null;
-    const startsWild = pat.startsWith("*");
-    const endsWild = pat.endsWith("*");
-    // escape regex special chars except *
-    const escaped = pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
-    const src = escaped.replace(/\*/g, ".*");
-    if (!startsWild && !endsWild) return "\\b" + src + "\\b";
-    return (startsWild ? "" : "\\b") + src + (endsWild ? "" : "\\b");
+  const buildMatcher = (patterns, prefix = "") => {
+    const parts = patterns
+      .filter((p) => (prefix ? p.startsWith(prefix) : !p.startsWith("url:")))
+      .map((p) => {
+        const pat = (prefix ? p.slice(prefix.length) : p).trim().toLowerCase();
+        if (!pat) return null;
+        const startsWild = pat[0] === "*";
+        const endsWild = pat[pat.length - 1] === "*";
+        // escape regex special chars except *
+        const escaped = pat.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+        const src = escaped.replace(/\*/g, ".*");
+        return (startsWild ? "" : "\\b") + src + (endsWild ? "" : "\\b");
+      })
+      .filter(Boolean);
+    return parts.length ? new RegExp("(" + parts.join("|") + ")", "i") : null;
   };
 
-  const buildRegex = (parts) => {
-    if (!parts.length) return null;
-    return new RegExp("(" + parts.join("|") + ")", "i");
-  };
-
-  const buildMatchers = (patterns) => {
-    const titleParts = [];
-    const urlParts = [];
-    for (const pat of patterns) {
-      if (pat.startsWith("url:")) {
-        const src = patternToRegex(pat.slice(4));
-        if (src) urlParts.push(src);
-      } else {
-        const src = patternToRegex(pat);
-        if (src) titleParts.push(src);
-      }
-    }
-    return {
-      title: buildRegex(titleParts),
-      url: buildRegex(urlParts),
-    };
-  };
+  const buildMatchers = (patterns) => ({
+    title: buildMatcher(patterns),
+    url: buildMatcher(patterns, "url:"),
+  });
 
   let minTextareaHeight = 0;
+  const resizeTextarea = (textarea) => {
+    if (!minTextareaHeight) minTextareaHeight = textarea.offsetHeight;
+    textarea.style.height = "0";
+    textarea.style.height =
+      Math.max(textarea.scrollHeight, minTextareaHeight) + "px";
+  };
+
+  const setRowDisplay = (row, subtext, spacer, visible) => {
+    const display = visible ? "" : "none";
+    row.style.display = display;
+    if (subtext) subtext.style.display = display;
+    if (spacer?.classList.contains("spacer")) spacer.style.display = display;
+  };
 
   // test each row against matchers, call fn(row, subtext, spacer, matched)
   const eachRow = (matchers, fn) => {
@@ -77,7 +83,7 @@
       if (!titleEl) return;
 
       const siteEl = row.querySelector(".sitebit a");
-      const site = siteEl ? siteEl.textContent : "";
+      const site = siteEl?.textContent ?? "";
       const href = titleEl.href || "";
 
       const subtext = row.nextElementSibling;
@@ -101,11 +107,7 @@
     let rank = startRank;
 
     eachRow(blocked, (row, subtext, spacer, matched) => {
-      const display = matched ? "none" : "";
-      row.style.display = display;
-      if (subtext) subtext.style.display = display;
-      if (spacer?.classList.contains("spacer")) spacer.style.display = display;
-
+      setRowDisplay(row, subtext, spacer, !matched);
       if (!matched) {
         rank++;
         const rankEl = row.querySelector(".rank");
@@ -123,11 +125,7 @@
   };
 
   const preview = (text) => {
-    const lines = text
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const matchers = buildMatchers(lines);
+    const matchers = buildMatchers(parseLines(text));
 
     if (!matchers.title && !matchers.url) {
       clearHighlights();
@@ -214,12 +212,6 @@
 
     const textarea = document.querySelector("#hn-filter-textarea");
 
-    const autoResize = () => {
-      textarea.style.height = "0";
-      textarea.style.height =
-        Math.max(textarea.scrollHeight, minTextareaHeight) + "px";
-    };
-
     let debounceTimer;
     const debouncedPreview = () => {
       clearTimeout(debounceTimer);
@@ -227,36 +219,35 @@
     };
 
     textarea.addEventListener("input", () => {
-      autoResize();
+      resizeTextarea(textarea);
       debouncedPreview();
     });
 
     document
       .querySelector("#hn-filter-close")
-      .addEventListener("click", togglePanel);
+      .addEventListener("click", () => {
+        clearTimeout(debounceTimer);
+        togglePanel();
+      });
   };
 
   const togglePanel = () => {
     const panel = document.querySelector("#hn-filter-panel");
     if (!panel) return;
     const visible = panel.style.display !== "none";
+    const textarea = document.querySelector("#hn-filter-textarea");
+
     if (!visible) {
       // opening: unhide everything so highlights are visible
       document.querySelectorAll("tr.athing").forEach((row) => {
-        row.style.display = "";
         const subtext = row.nextElementSibling;
         const spacer = subtext?.nextElementSibling;
-        if (subtext) subtext.style.display = "";
-        if (spacer?.classList.contains("spacer")) spacer.style.display = "";
+        setRowDisplay(row, subtext, spacer, true);
       });
 
-      const textarea = document.querySelector("#hn-filter-textarea");
       textarea.value = loadPatterns().join("\n");
       panel.style.display = "";
-      if (!minTextareaHeight) minTextareaHeight = textarea.offsetHeight;
-      textarea.style.height = "0";
-      textarea.style.height =
-        Math.max(textarea.scrollHeight, minTextareaHeight) + "px";
+      resizeTextarea(textarea);
 
       // highlight current patterns
       preview(textarea.value);
@@ -264,12 +255,7 @@
     }
 
     // closing: save, clear highlights, apply filter
-    const textarea = document.querySelector("#hn-filter-textarea");
-    const lines = textarea.value
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    savePatterns(lines);
+    savePatterns(parseLines(textarea.value));
     clearHighlights();
     panel.style.display = "none";
     filter();
