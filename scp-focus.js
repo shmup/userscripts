@@ -55,7 +55,7 @@
 
     // preserve all inline styles and ensure light text on black
     clone.style.cssText = `
-      max-width: 800px;
+      max-width: 640px;
       margin: 0 auto;
       color: #fff;
     `;
@@ -73,6 +73,25 @@
       bq.style.borderLeft = '2px solid #666';
       bq.style.background = '#111';
       bq.style.color = '#fff';
+    });
+
+    // fix footnotes footer for dark mode
+    clone.querySelectorAll('.footnotes-footer').forEach(fn => {
+      fn.style.background = '#111';
+      fn.style.borderTop = '1px solid #666';
+      fn.style.color = '#fff';
+    });
+
+    // fix code blocks for dark mode
+    clone.querySelectorAll('.code').forEach(code => {
+      code.style.background = '#1a1a1a';
+      code.style.border = '1px solid #333';
+      code.style.color = '#ddd';
+    });
+
+    // fix credit rate for dark mode
+    clone.querySelectorAll('.rate-box-with-credit-button').forEach(cr => {
+      cr.style.padding = '0';
     });
 
     overlay.innerHTML = '';
